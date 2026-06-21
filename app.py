@@ -49,8 +49,6 @@ SYMBOLS = {
 
 @st.cache_data(ttl=1800)
 def get_price(symbol):
-    @st.cache_data(ttl=1800)
-def get_price(symbol):
     try:
         data = yf.download(
             symbol,
@@ -65,7 +63,6 @@ def get_price(symbol):
 
         close = data["Close"]
 
-        # yfinance 有時候會回傳 DataFrame，多 ticker 結構要壓成 Series
         if hasattr(close, "columns"):
             close = close.iloc[:, 0]
 
@@ -90,6 +87,14 @@ def get_price(symbol):
 
     except Exception:
         return None, None
+
+
+st.sidebar.markdown("## 🌐 Language")
+
+selected = st.sidebar.selectbox(
+    label="Language",
+    options=list(LANG_OPTIONS.keys()),
+    label_visibility="collapsed"
 )
 
 lang = LANG_OPTIONS[selected]
