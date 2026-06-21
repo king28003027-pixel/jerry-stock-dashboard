@@ -3,6 +3,7 @@ import streamlit as st
 from core.data import last_update_utc, latest_market_snapshot
 from core.i18n import get_text
 from core.model import build_cycle_model, latest_model_state
+from core.sector import build_sector_allocation
 
 
 language = st.session_state.get("language", "繁體中文")
@@ -19,6 +20,13 @@ PHASE_KEY = {
 model = build_cycle_model()
 state = latest_model_state(model)
 phase_suffix = PHASE_KEY.get(state["phase"], "neutral")
+sector_allocation = build_sector_allocation(state["phase"])
+overweight_sectors = sector_allocation.loc[
+    sector_allocation["Status"] == "Overweight", "Sector"
+].head(3).tolist()
+underweight_sectors = sector_allocation.loc[
+    sector_allocation["Status"] == "Underweight", "Sector"
+].tail(3).tolist()
 
 st.title(t["dashboard_title"])
 
@@ -46,8 +54,13 @@ with left:
     st.markdown(f"**{t['allocation_action']}**")
     st.info(t[f"action_{phase_suffix}"])
 
-    st.markdown(f"**{t['preferred_sectors']}**")
-    st.write(" · ".join(t[f"sector_{phase_suffix}"]))
+    add_col, trim_col = st.columns(2)
+    with add_col:
+        st.markdown(f"**{t['add_sectors']}**")
+        st.write(" · ".join(overweight_sectors) if overweight_sectors else "—")
+    with trim_col:
+        st.markdown(f"**{t['trim_sectors']}**")
+        st.write(" · ".join(underweight_sectors) if underweight_sectors else "—")
 
 with right:
     a, b = st.columns(2)

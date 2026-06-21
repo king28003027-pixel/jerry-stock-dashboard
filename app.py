@@ -35,6 +35,11 @@ pages = [
         default=True,
     ),
     st.Page(
+        "views/sector_allocation.py",
+        title="Sector Allocation",
+        icon=":material/finance_mode:",
+    ),
+    st.Page(
         "views/cycle_chart.py",
         title="Cycle Chart",
         icon=":material/candlestick_chart:",
