@@ -5,7 +5,8 @@ import pandas as pd
 st.set_page_config(
     page_title="Macro Cycle Dashboard | 景氣循環儀表板",
     page_icon="📈",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 TEXT = {
@@ -138,18 +139,22 @@ def get_fred_value(series_id):
         return None, None
 
 
-st.sidebar.markdown("## 🌐 Language")
+# Header with language selector
+header_left, header_right = st.columns([8, 2])
 
-selected = st.sidebar.selectbox(
-    label="Language",
-    options=list(LANG_OPTIONS.keys()),
-    label_visibility="collapsed"
-)
+with header_right:
+    selected = st.selectbox(
+        label="Language",
+        options=list(LANG_OPTIONS.keys()),
+        label_visibility="collapsed"
+    )
 
 lang = LANG_OPTIONS[selected]
 t = TEXT[lang]
 
-st.title(t["title"])
+with header_left:
+    st.title(t["title"])
+
 st.divider()
 
 st.subheader(t["market"])
