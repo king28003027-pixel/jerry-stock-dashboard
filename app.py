@@ -1,5 +1,6 @@
 import streamlit as st
 import yfinance as yf
+import pandas as pd
 
 st.set_page_config(
     page_title="Macro Cycle Dashboard | 景氣循環儀表板",
@@ -10,24 +11,30 @@ st.set_page_config(
 TEXT = {
     "繁體中文": {
         "title": "📈 景氣循環儀表板",
+        "market": "市場指標",
+        "macro": "總經指標",
         "cycle": "景氣循環判斷",
-        "cycle_msg": "目前已接入市場價格資料，總經資料尚未接入。",
+        "cycle_msg": "目前已接入市場價格與 FRED 總經資料，PMI 尚未接入。",
         "rotation": "產業輪動建議",
         "watchlist": "觀察名單",
         "sectors": ["工業", "礦業", "金融", "能源"],
     },
     "English": {
         "title": "📈 Macro Cycle Dashboard",
+        "market": "Market Indicators",
+        "macro": "Macro Indicators",
         "cycle": "Cycle Regime",
-        "cycle_msg": "Market price data connected. Macro data is not connected yet.",
+        "cycle_msg": "Market prices and FRED macro data connected. PMI is not connected yet.",
         "rotation": "Sector Rotation",
         "watchlist": "Watchlist",
         "sectors": ["Industrials", "Mining", "Financials", "Energy"],
     },
     "日本語": {
         "title": "📈 景気循環ダッシュボード",
+        "market": "市場指標",
+        "macro": "マクロ指標",
         "cycle": "景気循環判定",
-        "cycle_msg": "市場価格データは接続済み。マクロデータは未接続です。",
+        "cycle_msg": "市場価格とFREDマクロデータ接続済み。PMIは未接続です。",
         "rotation": "セクターローテーション",
         "watchlist": "ウォッチリスト",
         "sectors": ["工業", "鉱業", "金融", "エネルギー"],
@@ -40,15 +47,23 @@ LANG_OPTIONS = {
     "🇯🇵 日本語": "日本語"
 }
 
-SYMBOLS = {
+MARKET_SYMBOLS = {
     "DXY": "DX-Y.NYB",
     "VIX": "^VIX",
     "S&P 500": "^GSPC",
     "Copper": "HG=F"
 }
 
+FRED_SERIES = {
+    "Unemployment Rate": "UNRATE",
+    "Fed Funds Rate": "FEDFUNDS",
+    "10Y-2Y Spread": "T10Y2Y",
+    "CPI": "CPIAUCSL"
+}
+
+
 @st.cache_data(ttl=1800)
-def get_price(symbol):
+def get_market_price(symbol):
     try:
         data = yf.download(
             symbol,
@@ -89,6 +104,40 @@ def get_price(symbol):
         return None, None
 
 
+@st.cache_data(ttl=3600)
+def get_fred_value(series_id):
+    try:
+        url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+        data = pd.read_csv(url)
+
+        if data.empty:
+            return None, None
+
+        data.columns = ["Date", "Value"]
+        data["Value"] = pd.to_numeric(data["Value"], errors="coerce")
+        data = data.dropna()
+
+        if len(data) == 0:
+            return None, None
+
+        latest = data["Value"].iloc[-1]
+
+        if len(data) < 2:
+            return latest, 0.0
+
+        previous = data["Value"].iloc[-2]
+
+        if previous == 0:
+            return latest, 0.0
+
+        change = latest - previous
+
+        return latest, change
+
+    except Exception:
+        return None, None
+
+
 st.sidebar.markdown("## 🌐 Language")
 
 selected = st.sidebar.selectbox(
@@ -103,17 +152,19 @@ t = TEXT[lang]
 st.title(t["title"])
 st.divider()
 
-col1, col2, col3, col4 = st.columns(4)
+st.subheader(t["market"])
 
-metrics = [
-    ("DXY", SYMBOLS["DXY"], col1),
-    ("VIX", SYMBOLS["VIX"], col2),
-    ("S&P 500", SYMBOLS["S&P 500"], col3),
-    ("Copper", SYMBOLS["Copper"], col4),
+m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+
+market_metrics = [
+    ("DXY", MARKET_SYMBOLS["DXY"], m_col1),
+    ("VIX", MARKET_SYMBOLS["VIX"], m_col2),
+    ("S&P 500", MARKET_SYMBOLS["S&P 500"], m_col3),
+    ("Copper", MARKET_SYMBOLS["Copper"], m_col4),
 ]
 
-for name, symbol, col in metrics:
-    value, change = get_price(symbol)
+for name, symbol, col in market_metrics:
+    value, change = get_market_price(symbol)
 
     with col:
         if value is None:
@@ -123,6 +174,32 @@ for name, symbol, col in metrics:
                 label=name,
                 value=f"{value:,.2f}",
                 delta=f"{change:.2f}%"
+            )
+
+st.divider()
+
+st.subheader(t["macro"])
+
+f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+
+fred_metrics = [
+    ("Unemployment Rate", FRED_SERIES["Unemployment Rate"], f_col1, "%"),
+    ("Fed Funds Rate", FRED_SERIES["Fed Funds Rate"], f_col2, "%"),
+    ("10Y-2Y Spread", FRED_SERIES["10Y-2Y Spread"], f_col3, "%"),
+    ("CPI", FRED_SERIES["CPI"], f_col4, ""),
+]
+
+for name, series_id, col, unit in fred_metrics:
+    value, change = get_fred_value(series_id)
+
+    with col:
+        if value is None:
+            st.metric(name, "N/A", "N/A")
+        else:
+            st.metric(
+                label=name,
+                value=f"{value:,.2f}{unit}",
+                delta=f"{change:+.2f}"
             )
 
 st.divider()
