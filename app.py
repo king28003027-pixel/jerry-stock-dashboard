@@ -49,28 +49,47 @@ SYMBOLS = {
 
 @st.cache_data(ttl=1800)
 def get_price(symbol):
-    data = yf.download(symbol, period="5d", interval="1d", progress=False)
+    @st.cache_data(ttl=1800)
+def get_price(symbol):
+    try:
+        data = yf.download(
+            symbol,
+            period="7d",
+            interval="1d",
+            progress=False,
+            auto_adjust=False
+        )
 
-    if data.empty:
+        if data.empty or "Close" not in data:
+            return None, None
+
+        close = data["Close"]
+
+        # yfinance 有時候會回傳 DataFrame，多 ticker 結構要壓成 Series
+        if hasattr(close, "columns"):
+            close = close.iloc[:, 0]
+
+        close = close.dropna()
+
+        if len(close) == 0:
+            return None, None
+
+        latest = close.iloc[-1].item()
+
+        if len(close) < 2:
+            return latest, 0.0
+
+        previous = close.iloc[-2].item()
+
+        if previous == 0:
+            return latest, 0.0
+
+        change_pct = (latest - previous) / previous * 100
+
+        return latest, change_pct
+
+    except Exception:
         return None, None
-
-    close = data["Close"].dropna()
-
-    if len(close) < 2:
-        return float(close.iloc[-1]), 0.0
-
-    latest = float(close.iloc[-1])
-    previous = float(close.iloc[-2])
-    change_pct = (latest - previous) / previous * 100
-
-    return latest, change_pct
-
-st.sidebar.markdown("## 🌐 Language")
-
-selected = st.sidebar.selectbox(
-    label="Language",
-    options=list(LANG_OPTIONS.keys()),
-    label_visibility="collapsed"
 )
 
 lang = LANG_OPTIONS[selected]
