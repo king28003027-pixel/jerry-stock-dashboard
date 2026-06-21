@@ -12,8 +12,9 @@ st.set_page_config(
 TEXT = {
     "繁體中文": {
         "title": "📈 景氣循環儀表板",
-        "market": "市場指標",
-        "macro": "總經指標",
+        "core": "核心儀表板",
+        "market_more": "查看更多市場指標",
+        "macro_more": "查看更多總經指標",
         "cycle": "景氣循環判斷",
         "score": "景氣信心分數",
         "regime": "目前階段",
@@ -36,8 +37,9 @@ TEXT = {
     },
     "English": {
         "title": "📈 Macro Cycle Dashboard",
-        "market": "Market Indicators",
-        "macro": "Macro Indicators",
+        "core": "Core Dashboard",
+        "market_more": "More market indicators",
+        "macro_more": "More macro indicators",
         "cycle": "Cycle Regime",
         "score": "Cycle Confidence Score",
         "regime": "Current Regime",
@@ -60,8 +62,9 @@ TEXT = {
     },
     "日本語": {
         "title": "📈 景気循環ダッシュボード",
-        "market": "市場指標",
-        "macro": "マクロ指標",
+        "core": "コアダッシュボード",
+        "market_more": "市場指標をさらに表示",
+        "macro_more": "マクロ指標をさらに表示",
         "cycle": "景気循環判定",
         "score": "景気信頼スコア",
         "regime": "現在の局面",
@@ -109,26 +112,32 @@ FRED_SERIES = {
 def get_market_price(symbol):
     try:
         data = yf.download(symbol, period="7d", interval="1d", progress=False, auto_adjust=False)
+
         if data.empty or "Close" not in data:
             return None, None
 
         close = data["Close"]
+
         if hasattr(close, "columns"):
             close = close.iloc[:, 0]
 
         close = close.dropna()
+
         if len(close) == 0:
             return None, None
 
         latest = close.iloc[-1].item()
+
         if len(close) < 2:
             return latest, 0.0
 
         previous = close.iloc[-2].item()
+
         if previous == 0:
             return latest, 0.0
 
         change_pct = (latest - previous) / previous * 100
+
         return latest, change_pct
 
     except Exception:
@@ -170,7 +179,6 @@ def calculate_cycle_regime(market_data, macro_data):
 
     vix = market_data.get("VIX", {}).get("value")
     vix_chg = market_data.get("VIX", {}).get("change")
-
     spx_chg = market_data.get("S&P 500", {}).get("change")
     copper_chg = market_data.get("Copper", {}).get("change")
     dxy_chg = market_data.get("DXY", {}).get("change")
@@ -192,22 +200,13 @@ def calculate_cycle_regime(market_data, macro_data):
             score -= 5
 
     if spx_chg is not None:
-        if spx_chg > 0:
-            score += 5
-        else:
-            score -= 5
+        score += 5 if spx_chg > 0 else -5
 
     if copper_chg is not None:
-        if copper_chg > 0:
-            score += 10
-        else:
-            score -= 5
+        score += 10 if copper_chg > 0 else -5
 
     if dxy_chg is not None:
-        if dxy_chg < 0:
-            score += 5
-        else:
-            score -= 3
+        score += 5 if dxy_chg < 0 else -3
 
     if unemployment_chg is not None:
         if unemployment_chg < 0:
@@ -258,81 +257,84 @@ t = TEXT[lang]
 with header_left:
     st.title(t["title"])
 
-st.divider()
-
 market_data = {}
 macro_data = {}
 
-st.subheader(t["market"])
-m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-
-market_metrics = [
-    ("DXY", MARKET_SYMBOLS["DXY"], m_col1),
-    ("VIX", MARKET_SYMBOLS["VIX"], m_col2),
-    ("S&P 500", MARKET_SYMBOLS["S&P 500"], m_col3),
-    ("Copper", MARKET_SYMBOLS["Copper"], m_col4),
-]
-
-for name, symbol, col in market_metrics:
+for name, symbol in MARKET_SYMBOLS.items():
     value, change = get_market_price(symbol)
     market_data[name] = {"value": value, "change": change}
 
-    with col:
-        if value is None:
-            st.metric(name, "N/A", "N/A")
-        else:
-            st.metric(name, f"{value:,.2f}", f"{change:.2f}%")
-
-st.divider()
-
-st.subheader(t["macro"])
-f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-
-fred_metrics = [
-    ("Unemployment Rate", FRED_SERIES["Unemployment Rate"], f_col1, "%"),
-    ("Fed Funds Rate", FRED_SERIES["Fed Funds Rate"], f_col2, "%"),
-    ("10Y-2Y Spread", FRED_SERIES["10Y-2Y Spread"], f_col3, "%"),
-    ("CPI", FRED_SERIES["CPI"], f_col4, ""),
-]
-
-for name, series_id, col, unit in fred_metrics:
+for name, series_id in FRED_SERIES.items():
     value, change = get_fred_value(series_id)
     macro_data[name] = {"value": value, "change": change}
 
-    with col:
-        if value is None:
-            st.metric(name, "N/A", "N/A")
-        else:
-            st.metric(name, f"{value:,.2f}{unit}", f"{change:+.2f}")
-
-st.divider()
-
 regime, score = calculate_cycle_regime(market_data, macro_data)
 
-st.subheader(t["cycle"])
+st.subheader(t["core"])
 
-c1, c2 = st.columns(2)
+top_left, top_right = st.columns([1.2, 1])
 
-with c1:
-    st.metric(t["regime"], t["regimes"][regime])
+with top_left:
+    c1, c2 = st.columns(2)
 
-with c2:
-    st.metric(t["score"], f"{score}/100")
+    with c1:
+        st.metric(t["regime"], t["regimes"][regime])
 
-st.progress(score / 100)
+    with c2:
+        st.metric(t["score"], f"{score}/100")
 
-st.subheader(t["rotation"])
+    st.progress(score / 100)
 
-for sector in t["sector_map"][regime]:
-    st.write(f"• {sector}")
+    st.markdown(f"**{t['rotation']}**")
+    st.write(" / ".join(t["sector_map"][regime]))
 
-st.subheader(t["watchlist"])
+with top_right:
+    k1, k2 = st.columns(2)
+    k3, k4 = st.columns(2)
 
-watchlist = [
-    {"Ticker": "CAT", "Company": "Caterpillar", "Theme": "Industrials"},
-    {"Ticker": "FCX", "Company": "Freeport-McMoRan", "Theme": "Copper / Mining"},
-    {"Ticker": "JPM", "Company": "JPMorgan", "Theme": "Financials"},
-    {"Ticker": "XOM", "Company": "Exxon Mobil", "Theme": "Energy"},
-]
+    with k1:
+        v = market_data["VIX"]["value"]
+        c = market_data["VIX"]["change"]
+        st.metric("VIX", "N/A" if v is None else f"{v:,.2f}", "N/A" if c is None else f"{c:.2f}%")
 
-st.dataframe(watchlist, use_container_width=True, hide_index=True)
+    with k2:
+        v = market_data["S&P 500"]["value"]
+        c = market_data["S&P 500"]["change"]
+        st.metric("S&P 500", "N/A" if v is None else f"{v:,.2f}", "N/A" if c is None else f"{c:.2f}%")
+
+    with k3:
+        v = macro_data["10Y-2Y Spread"]["value"]
+        c = macro_data["10Y-2Y Spread"]["change"]
+        st.metric("10Y-2Y", "N/A" if v is None else f"{v:,.2f}%", "N/A" if c is None else f"{c:+.2f}")
+
+    with k4:
+        v = macro_data["Unemployment Rate"]["value"]
+        c = macro_data["Unemployment Rate"]["change"]
+        st.metric("Unemployment", "N/A" if v is None else f"{v:,.2f}%", "N/A" if c is None else f"{c:+.2f}")
+
+with st.expander(t["market_more"]):
+    cols = st.columns(4)
+    for idx, name in enumerate(MARKET_SYMBOLS.keys()):
+        v = market_data[name]["value"]
+        c = market_data[name]["change"]
+        with cols[idx]:
+            st.metric(name, "N/A" if v is None else f"{v:,.2f}", "N/A" if c is None else f"{c:.2f}%")
+
+with st.expander(t["macro_more"]):
+    cols = st.columns(4)
+    for idx, name in enumerate(FRED_SERIES.keys()):
+        v = macro_data[name]["value"]
+        c = macro_data[name]["change"]
+        unit = "%" if name in ["Unemployment Rate", "Fed Funds Rate", "10Y-2Y Spread"] else ""
+        with cols[idx]:
+            st.metric(name, "N/A" if v is None else f"{v:,.2f}{unit}", "N/A" if c is None else f"{c:+.2f}")
+
+with st.expander(t["watchlist"]):
+    watchlist = [
+        {"Ticker": "CAT", "Company": "Caterpillar", "Theme": "Industrials"},
+        {"Ticker": "FCX", "Company": "Freeport-McMoRan", "Theme": "Copper / Mining"},
+        {"Ticker": "JPM", "Company": "JPMorgan", "Theme": "Financials"},
+        {"Ticker": "XOM", "Company": "Exxon Mobil", "Theme": "Energy"},
+    ]
+
+    st.dataframe(watchlist, use_container_width=True, hide_index=True)
