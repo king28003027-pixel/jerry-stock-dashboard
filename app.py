@@ -1,8 +1,5 @@
 import streamlit as st
-
-# =========================
-# Page Config
-# =========================
+import yfinance as yf
 
 st.set_page_config(
     page_title="Macro Cycle Dashboard | 景氣循環儀表板",
@@ -10,51 +7,63 @@ st.set_page_config(
     layout="wide"
 )
 
-# =========================
-# Language Pack
-# =========================
-
 TEXT = {
     "繁體中文": {
         "title": "📈 景氣循環儀表板",
-        "language": "語言",
         "cycle": "景氣循環判斷",
-        "cycle_msg": "目前尚未連接真實數據",
+        "cycle_msg": "目前已接入市場價格資料，總經資料尚未接入。",
         "rotation": "產業輪動建議",
         "watchlist": "觀察名單",
         "sectors": ["工業", "礦業", "金融", "能源"],
     },
-
     "English": {
         "title": "📈 Macro Cycle Dashboard",
-        "language": "Language",
         "cycle": "Cycle Regime",
-        "cycle_msg": "Real-time data not connected yet.",
+        "cycle_msg": "Market price data connected. Macro data is not connected yet.",
         "rotation": "Sector Rotation",
         "watchlist": "Watchlist",
         "sectors": ["Industrials", "Mining", "Financials", "Energy"],
     },
-
     "日本語": {
         "title": "📈 景気循環ダッシュボード",
-        "language": "言語",
         "cycle": "景気循環判定",
-        "cycle_msg": "現在リアルタイムデータ未接続",
+        "cycle_msg": "市場価格データは接続済み。マクロデータは未接続です。",
         "rotation": "セクターローテーション",
         "watchlist": "ウォッチリスト",
         "sectors": ["工業", "鉱業", "金融", "エネルギー"],
     }
 }
 
-# =========================
-# Language Selector
-# =========================
-
 LANG_OPTIONS = {
     "🇹🇼 繁體中文": "繁體中文",
     "🇺🇸 English": "English",
     "🇯🇵 日本語": "日本語"
 }
+
+SYMBOLS = {
+    "DXY": "DX-Y.NYB",
+    "VIX": "^VIX",
+    "S&P 500": "^GSPC",
+    "Copper": "HG=F"
+}
+
+@st.cache_data(ttl=1800)
+def get_price(symbol):
+    data = yf.download(symbol, period="5d", interval="1d", progress=False)
+
+    if data.empty:
+        return None, None
+
+    close = data["Close"].dropna()
+
+    if len(close) < 2:
+        return float(close.iloc[-1]), 0.0
+
+    latest = float(close.iloc[-1])
+    previous = float(close.iloc[-2])
+    change_pct = (latest - previous) / previous * 100
+
+    return latest, change_pct
 
 st.sidebar.markdown("## 🌐 Language")
 
@@ -65,81 +74,50 @@ selected = st.sidebar.selectbox(
 )
 
 lang = LANG_OPTIONS[selected]
-
 t = TEXT[lang]
 
-# =========================
-# Title
-# =========================
-
 st.title(t["title"])
-
 st.divider()
-
-# =========================
-# KPI Area
-# =========================
 
 col1, col2, col3, col4 = st.columns(4)
 
-with col1:
-    st.metric(
-        label="PMI",
-        value="50.0",
-        delta="0.0"
-    )
+metrics = [
+    ("DXY", SYMBOLS["DXY"], col1),
+    ("VIX", SYMBOLS["VIX"], col2),
+    ("S&P 500", SYMBOLS["S&P 500"], col3),
+    ("Copper", SYMBOLS["Copper"], col4),
+]
 
-with col2:
-    st.metric(
-        label="DXY",
-        value="100.0",
-        delta="0.0"
-    )
+for name, symbol, col in metrics:
+    value, change = get_price(symbol)
 
-with col3:
-    st.metric(
-        label="VIX",
-        value="20.0",
-        delta="0.0"
-    )
-
-with col4:
-    st.metric(
-        label="Copper",
-        value="4.50",
-        delta="0.0"
-    )
+    with col:
+        if value is None:
+            st.metric(name, "N/A", "N/A")
+        else:
+            st.metric(
+                label=name,
+                value=f"{value:,.2f}",
+                delta=f"{change:.2f}%"
+            )
 
 st.divider()
 
-# =========================
-# Cycle
-# =========================
-
 st.subheader(t["cycle"])
-
 st.info(t["cycle_msg"])
-
-# =========================
-# Rotation
-# =========================
 
 st.subheader(t["rotation"])
 
 for sector in t["sectors"]:
     st.write(f"• {sector}")
 
-# =========================
-# Watchlist
-# =========================
-
 st.subheader(t["watchlist"])
 
 watchlist = [
-    {"Ticker": "CAT", "Company": "Caterpillar"},
-    {"Ticker": "FCX", "Company": "Freeport-McMoRan"},
-    {"Ticker": "JPM", "Company": "JPMorgan"},
-    {"Ticker": "XOM", "Company": "Exxon Mobil"},
+    {"Ticker": "CAT", "Company": "Caterpillar", "Theme": "Industrials"},
+    {"Ticker": "FCX", "Company": "Freeport-McMoRan", "Theme": "Copper / Mining"},
+    {"Ticker": "JPM", "Company": "JPMorgan", "Theme": "Financials"},
+    {"Ticker": "XOM", "Company": "Exxon Mobil", "Theme": "Energy"},
 ]
 
 st.dataframe(
