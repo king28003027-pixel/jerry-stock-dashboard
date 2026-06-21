@@ -36,9 +36,21 @@ TEXT = {
     }
 }
 
-lang = st.sidebar.selectbox(
-    "Language / 語言 / 言語",
-    list(TEXT.keys())
+LANG_OPTIONS = {
+    "🇹🇼 繁體中文": "繁體中文",
+    "🇺🇸 English": "English",
+    "🇯🇵 日本語": "日本語"
+}
+
+st.sidebar.markdown("## 🌐 Language")
+
+selected = st.sidebar.selectbox(
+    "",
+    list(LANG_OPTIONS.keys())
+)
+
+lang = LANG_OPTIONS[selected]
+t = TEXT[lang]
 )
 
 t = TEXT[lang]
